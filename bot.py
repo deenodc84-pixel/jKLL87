@@ -1,8 +1,7 @@
 import os
 import random
-import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 from dotenv import load_dotenv
@@ -19,6 +18,9 @@ logger = logging.getLogger(__name__)
 
 # Bot token from environment
 TOKEN = os.getenv('BOT_TOKEN')
+
+if not TOKEN:
+    raise ValueError("No BOT_TOKEN found in environment variables!")
 
 # Word database with etymology facts
 WORD_DATABASE = [
@@ -113,10 +115,9 @@ PUZZLE_DATABASE = [
     }
 ]
 
-# User statistics storage (simple in-memory for demo)
+# User statistics storage
 user_stats = {}
 
-# Helper functions
 def get_word_of_day():
     """Get the word of the day based on date"""
     day = datetime.now().day
@@ -128,9 +129,6 @@ def format_word_info(word_data):
            f"🔍 *Meaning:* {word_data['meaning']}\n\n" \
            f"📜 *Origin:* {word_data['origin']}\n\n" \
            f"💡 *Example:* _{word_data['example']}_"
-
-def get_favorites_key(user_id):
-    return f"favorites_{user_id}"
 
 # Command handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -359,7 +357,10 @@ async def mystats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.callback_query.message.reply_text(stats_text, reply_markup=reply_markup, parse_mode='Markdown')
     else:
-        await update.message.reply_text("📊 Start using the bot to track your statistics!")
+        if update.message:
+            await update.message.reply_text("📊 Start using the bot to track your statistics!")
+        else:
+            await update.callback_query.message.reply_text("📊 Start using the bot to track your statistics!")
 
 async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send about information."""
@@ -439,34 +440,37 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """Start the bot."""
-    # Create the Application
-    application = Application.builder().token(TOKEN).build()
+    try:
+        # Create the Application with increased timeout
+        application = Application.builder().token(TOKEN).connect_timeout(30).read_timeout(30).build()
 
-    # Add command handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("word", random_word))
-    application.add_handler(CommandHandler("puzzle", puzzle))
-    application.add_handler(CommandHandler("daily", daily_word))
-    application.add_handler(CommandHandler("favorite", favorite_word))
-    application.add_handler(CommandHandler("mystats", mystats))
-    application.add_handler(CommandHandler("about", about_command))
+        # Add command handlers
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("help", help_command))
+        application.add_handler(CommandHandler("word", random_word))
+        application.add_handler(CommandHandler("puzzle", puzzle))
+        application.add_handler(CommandHandler("daily", daily_word))
+        application.add_handler(CommandHandler("favorite", favorite_word))
+        application.add_handler(CommandHandler("mystats", mystats))
+        application.add_handler(CommandHandler("about", about_command))
 
-    # Add callback handler for buttons
-    application.add_handler(CallbackQueryHandler(button_handler))
+        # Add callback handler for buttons
+        application.add_handler(CallbackQueryHandler(button_handler))
 
-    # Add message handler for puzzle answers
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        # Add message handler for puzzle answers
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Run the bot
-    print("🤖 Word Detective Bot is running...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
-
-if __name__ == '__main__':
-    main()
+        # Start the bot with polling
+        print("🤖 Word Detective Bot is starting...")
+        print(f"Bot token: {TOKEN[:10]}...")
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        
+    except Exception as e:
+        print(f"❌ Error starting bot: {e}")
+        raise
 
 def run_bot():
-    """Function to run the bot (can be imported)"""
+    """Function to run the bot (for Flask integration)"""
     main()
 
 if __name__ == '__main__':
