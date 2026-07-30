@@ -464,3 +464,10 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+def run_bot():
+    """Function to run the bot (can be imported)"""
+    main()
+
+if __name__ == '__main__':
+    main()
